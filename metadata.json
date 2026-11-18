@@ -1,0 +1,6 @@
+{
+  "name": "Perfume 10",
+  "description": "متجر Perfume 10 للعطور المحمولة بحجم 10 مل — كريد أفنتوس، ديور أوم إنتنس، وفيرساتشي إيروس بسعر موحد 50 درهم.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
