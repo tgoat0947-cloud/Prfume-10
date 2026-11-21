@@ -1,12 +1,16 @@
 import { useState } from 'react';
-import { CAMPAIGN_IMAGE } from '../utils/store';
+import { CAMPAIGN_IMAGE, type Perfume } from '../utils/store';
 
 interface HeroProps {
+  products: readonly Perfume[];
+  deliveryFeeMad: number;
   onAddTrio: () => void;
 }
 
-export function Hero({ onAddTrio }: HeroProps) {
+export function Hero({ products, deliveryFeeMad, onAddTrio }: HeroProps) {
   const [imageError, setImageError] = useState(false);
+  const trioItems = products.slice(0, 3);
+  const trioTotal = trioItems.reduce((sum, item) => sum + item.priceMad, 0);
 
   return (
     <section
@@ -16,7 +20,7 @@ export function Hero({ onAddTrio }: HeroProps) {
       {/* Subtle crimson radial ambient light */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(185,28,28,0.18),transparent_55%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(220,38,38,0.18),transparent_55%)]"
       />
 
       <div className="relative mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-16">
@@ -32,24 +36,26 @@ export function Hero({ onAddTrio }: HeroProps) {
             </h1>
 
             <p className="mt-5 max-w-xl text-base leading-relaxed text-[#A8A29E] sm:text-lg">
-              استمتع بثلاثة من أشهر العطور العالمية — كريد أفنتوس، ديور أوم إنتنس، وفيرساتشي إيروس — في عبوة معدنية أنيقة بحجم 10 مل وبرائحة أصلية 100% تناسب جيبك وكل تنقلاتك.
+              استمتع بأشهر العطور العالمية — كريد أفنتوس، ديور أوم إنتنس، وفيرساتشي إيروس — في عبوة معدنية أنيقة بحجم 10 مل وبرائحة أصلية 100% تناسب جيبك وكل تنقلاتك.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <a
                 href="#collection"
-                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#B91C1C] px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#DC2626] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626] focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090B] whitespace-nowrap shrink-0"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#DC2626] px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#B91C1C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626] focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090B] whitespace-nowrap shrink-0"
               >
-                اكتشف العطور الثلاثة
+                اكتشف العطور المتوفرة
               </a>
 
-              <button
-                type="button"
-                onClick={onAddTrio}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-[#141214] px-5 py-3 text-sm font-semibold text-[#FAF7F5] transition-colors duration-150 hover:border-[#DC2626]/60 hover:bg-[#1C1719] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626] whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                اطلب المجموعة كاملة — 150 درهم
-              </button>
+              {trioItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={onAddTrio}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-[#141214] px-5 py-3 text-sm font-semibold text-[#FAF7F5] transition-colors duration-150 hover:border-[#DC2626]/60 hover:bg-[#1C1719] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626] whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  اطلب الباقة المختارة — {trioTotal} درهم
+                </button>
+              )}
             </div>
           </div>
 
@@ -81,9 +87,18 @@ export function Hero({ onAddTrio }: HeroProps) {
         {/* Full-width key value strip below hero split */}
         <div className="mt-10 grid grid-cols-1 divide-y divide-white/10 rounded-xl border border-white/10 bg-[#121012] sm:grid-cols-3 sm:divide-x sm:divide-x-reverse sm:divide-y-0">
           <div className="px-6 py-4">
-            <p className="text-xs font-medium text-[#A8A29E]">السعر الموحد</p>
+            <p className="text-xs font-medium text-[#A8A29E]">رسوم التوصيل</p>
             <p className="mt-1 text-lg font-bold text-[#FAF7F5] tabular-nums">
-              50 درهم <span className="text-sm font-normal text-[#A8A29E]">للعطر الواحد</span>
+              {deliveryFeeMad === 0 ? (
+                'توصيل مجاني'
+              ) : (
+                <>
+                  {deliveryFeeMad} درهم{' '}
+                  <span className="text-sm font-normal text-[#A8A29E]">
+                    لجميع المدن
+                  </span>
+                </>
+              )}
             </p>
           </div>
           <div className="px-6 py-4">
@@ -93,9 +108,9 @@ export function Hero({ onAddTrio }: HeroProps) {
             </p>
           </div>
           <div className="px-6 py-4">
-            <p className="text-xs font-medium text-[#A8A29E]">الضمان والجودة</p>
+            <p className="text-xs font-medium text-[#A8A29E]">الطلب والدفع</p>
             <p className="mt-1 text-lg font-bold text-[#FAF7F5]">
-              رائحة أصلية 100% · الدفع عند الاستلام
+              تأكيد عبر واتساب · الدفع عند الاستلام
             </p>
           </div>
         </div>

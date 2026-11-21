@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Minus, Plus, ShieldCheck, ShoppingBag, Sparkles, X } from 'lucide-react';
-import type { Perfume } from '../utils/store';
+import { getProductSizeText, type Perfume } from '../utils/store';
 
 interface PerfumeModalProps {
   perfume: Perfume | null;
   onClose: () => void;
-  onAddToCart: (perfumeId: Perfume['id'], quantity: number) => void;
+  onAddToCart: (perfumeId: string, quantity: number) => void;
 }
 
 export function PerfumeModal({
@@ -14,9 +14,11 @@ export function PerfumeModal({
   onAddToCart,
 }: PerfumeModalProps) {
   const [quantity, setQuantity] = useState(1);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     setQuantity(1);
+    setImageError(false);
   }, [perfume?.id]);
 
   useEffect(() => {
@@ -31,6 +33,12 @@ export function PerfumeModal({
   }, [perfume, onClose]);
 
   if (!perfume) return null;
+
+  const sizeText = getProductSizeText(perfume);
+  const hasNotes =
+    perfume.notes.top.length > 0 ||
+    perfume.notes.heart.length > 0 ||
+    perfume.notes.base.length > 0;
 
   const handleConfirmAdd = () => {
     onAddToCart(perfume.id, quantity);
@@ -51,7 +59,7 @@ export function PerfumeModal({
       >
         <div className="flex items-center justify-between border-b border-white/10 bg-[#09090B] px-6 py-3.5">
           <span className="text-xs font-semibold text-[#DC2626]">
-            {perfume.family} · 10 مل · قرابة {perfume.spraysEstimate} رشة
+            {perfume.family} · {sizeText}
           </span>
           <button
             type="button"
@@ -66,12 +74,22 @@ export function PerfumeModal({
         <div className="grid grid-cols-1 md:grid-cols-12">
           {/* Product image */}
           <div className="flex items-center justify-center border-b border-white/10 bg-[#09090B] p-4 md:col-span-5 md:border-b-0 md:border-l">
-            <img
-              src={perfume.image}
-              alt={`${perfume.arabicName} (${perfume.latinName})`}
-              referrerPolicy="no-referrer"
-              className="max-h-[340px] w-full rounded-lg object-contain"
-            />
+            {perfume.image && !imageError ? (
+              <img
+                src={perfume.image}
+                alt={`${perfume.arabicName} (${perfume.latinName})`}
+                referrerPolicy="no-referrer"
+                onError={() => setImageError(true)}
+                className="max-h-[340px] w-full rounded-lg object-contain"
+              />
+            ) : (
+              <div className="flex h-64 w-full flex-col items-center justify-center rounded-lg bg-gradient-to-b from-[#1F090C] to-[#09090B] p-6 text-center">
+                <span className="font-latin text-xl font-semibold text-[#FAF7F5]">
+                  {perfume.latinName || perfume.arabicName}
+                </span>
+                <span className="mt-1 text-xs text-[#A8A29E]">{sizeText}</span>
+              </div>
+            )}
           </div>
 
           {/* Product details & olfactory pyramid */}
@@ -84,12 +102,15 @@ export function PerfumeModal({
                 >
                   {perfume.arabicName}
                 </h2>
-                <p className="font-latin text-sm text-[#A8A29E]">
-                  {perfume.latinName}
-                </p>
+                {perfume.latinName && perfume.latinName !== perfume.arabicName && (
+                  <p className="font-latin text-sm text-[#A8A29E]">
+                    {perfume.latinName}
+                  </p>
+                )}
               </div>
               <p className="shrink-0 text-2xl font-bold text-[#FAF7F5] tabular-nums">
-                {perfume.priceMad} <span className="text-sm font-normal text-[#A8A29E]">درهم</span>
+                {perfume.priceMad}{' '}
+                <span className="text-sm font-normal text-[#A8A29E]">درهم</span>
               </p>
             </div>
 
@@ -98,37 +119,45 @@ export function PerfumeModal({
             </p>
 
             {/* Full 3-tier olfactory pyramid */}
-            <div className="mt-5 space-y-3 rounded-lg border border-white/10 bg-[#09090B] p-4">
-              <h3 className="text-sm font-bold text-[#FAF7F5]">
-                الهرم العطري الكامل
-              </h3>
-              <div className="space-y-2.5 text-xs">
-                <div>
-                  <span className="font-semibold text-[#DC2626]">
-                    افتتاحية العطر (Top Notes):{' '}
-                  </span>
-                  <span className="text-[#FAF7F5]">
-                    {perfume.notes.top.join(' · ')}
-                  </span>
-                </div>
-                <div className="border-t border-white/10 pt-2">
-                  <span className="font-semibold text-[#DC2626]">
-                    قلب العطر (Heart Notes):{' '}
-                  </span>
-                  <span className="text-[#FAF7F5]">
-                    {perfume.notes.heart.join(' · ')}
-                  </span>
-                </div>
-                <div className="border-t border-white/10 pt-2">
-                  <span className="font-semibold text-[#DC2626]">
-                    قاعدة العطر (Base Notes):{' '}
-                  </span>
-                  <span className="text-[#FAF7F5]">
-                    {perfume.notes.base.join(' · ')}
-                  </span>
+            {hasNotes && (
+              <div className="mt-5 space-y-3 rounded-lg border border-white/10 bg-[#09090B] p-4">
+                <h3 className="text-sm font-bold text-[#FAF7F5]">
+                  الهرم العطري الكامل
+                </h3>
+                <div className="space-y-2.5 text-xs">
+                  {perfume.notes.top.length > 0 && (
+                    <div>
+                      <span className="font-semibold text-[#DC2626]">
+                        افتتاحية العطر (Top Notes):{' '}
+                      </span>
+                      <span className="text-[#FAF7F5]">
+                        {perfume.notes.top.join(' · ')}
+                      </span>
+                    </div>
+                  )}
+                  {perfume.notes.heart.length > 0 && (
+                    <div className="border-t border-white/10 pt-2">
+                      <span className="font-semibold text-[#DC2626]">
+                        قلب العطر (Heart Notes):{' '}
+                      </span>
+                      <span className="text-[#FAF7F5]">
+                        {perfume.notes.heart.join(' · ')}
+                      </span>
+                    </div>
+                  )}
+                  {perfume.notes.base.length > 0 && (
+                    <div className="border-t border-white/10 pt-2">
+                      <span className="font-semibold text-[#DC2626]">
+                        قاعدة العطر (Base Notes):{' '}
+                      </span>
+                      <span className="text-[#FAF7F5]">
+                        {perfume.notes.base.join(' · ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Bottle guarantees */}
             <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#A8A29E]">
@@ -143,7 +172,7 @@ export function PerfumeModal({
             </div>
 
             {/* Quantity & Add CTA */}
-            <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
+            <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
               <div className="inline-flex items-center rounded-lg border border-white/15 bg-[#09090B]">
                 <button
                   type="button"
@@ -169,7 +198,7 @@ export function PerfumeModal({
               <button
                 type="button"
                 onClick={handleConfirmAdd}
-                className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-lg bg-[#B91C1C] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#DC2626] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626] whitespace-nowrap cursor-pointer"
+                className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-lg bg-[#DC2626] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626] whitespace-nowrap cursor-pointer"
               >
                 <ShoppingBag className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="tabular-nums">

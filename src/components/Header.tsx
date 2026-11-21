@@ -3,9 +3,10 @@ import { ShoppingBag } from 'lucide-react';
 interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
+  onOpenOwner: () => void;
 }
 
-export function Header({ cartCount, onOpenCart }: HeaderProps) {
+export function Header({ cartCount, onOpenCart, onOpenOwner }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[#09090B]/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-8 px-4 py-3.5 sm:px-6">
@@ -40,10 +41,24 @@ export function Header({ cartCount, onOpenCart }: HeaderProps) {
           >
             لماذا 10 مل
           </a>
+          <button
+            type="button"
+            onClick={onOpenOwner}
+            className="hover:text-[#FAF7F5] transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            إدارة المحل
+          </button>
         </nav>
 
-        {/* Zone 3: Single primary action */}
-        <div className="flex items-center shrink-0">
+        {/* Zone 3: Primary actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onOpenOwner}
+            className="md:hidden inline-flex items-center rounded-lg border border-white/15 bg-[#141214] px-3 py-2 text-xs font-semibold text-[#A8A29E] transition-colors hover:border-[#DC2626] hover:text-white whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            الإدارة
+          </button>
           <button
             type="button"
             onClick={onOpenCart}

@@ -1,24 +1,37 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import {
+  CheckCircle2,
+  ExternalLink,
+  Minus,
+  Plus,
+  ShoppingBag,
+  Trash2,
+  X,
+} from 'lucide-react';
+import {
+  buildWhatsAppChatUrl,
   calculateCartTotals,
   createOrderReceipt,
   getPerfumeById,
+  getProductSizeText,
   validateOrderForm,
   type CartItem,
   type ConfirmedOrder,
   type OrderCustomer,
   type OrderValidationErrors,
   type Perfume,
+  type StoreSettings,
 } from '../utils/store';
 
 interface CartDrawerProps {
   isOpen: boolean;
   cart: CartItem[];
+  products: readonly Perfume[];
+  settings: StoreSettings;
   lastOrder: ConfirmedOrder | null;
   onClose: () => void;
-  onUpdateQty: (perfumeId: Perfume['id'], nextQty: number) => void;
-  onRemoveItem: (perfumeId: Perfume['id']) => void;
+  onUpdateQty: (perfumeId: string, nextQty: number) => void;
+  onRemoveItem: (perfumeId: string) => void;
   onAddTrio: () => void;
   onConfirmOrder: (order: ConfirmedOrder) => void;
   onClearReceipt: () => void;
@@ -31,9 +44,26 @@ const INITIAL_CUSTOMER: OrderCustomer = {
   address: '',
 };
 
+function triggerWhatsAppLink(url: string) {
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  } catch {
+    // Fallback link remains prominently clickable in the confirmation receipt
+  }
+}
+
 export function CartDrawer({
   isOpen,
   cart,
+  products,
+  settings,
   lastOrder,
   onClose,
   onUpdateQty,
@@ -44,6 +74,7 @@ export function CartDrawer({
 }: CartDrawerProps) {
   const [customer, setCustomer] = useState<OrderCustomer>(INITIAL_CUSTOMER);
   const [errors, setErrors] = useState<OrderValidationErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -58,9 +89,9 @@ export function CartDrawer({
 
   if (!isOpen) return null;
 
-  const totals = calculateCartTotals(cart);
+  const totals = calculateCartTotals(cart, products, settings.deliveryFeeMad);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const result = validateOrderForm(customer);
     if (!result.isValid) {
@@ -68,10 +99,53 @@ export function CartDrawer({
       return;
     }
     setErrors({});
-    const receipt = createOrderReceipt(cart, customer);
+    setIsSubmitting(true);
+
+    const receipt = createOrderReceipt(
+      cart,
+      customer,
+      products,
+      settings.deliveryFeeMad,
+    );
+
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer,
+          deliveryFeeMad: settings.deliveryFeeMad,
+          items: receipt.items.map((entry) => ({
+            perfumeId: entry.perfume.id,
+            arabicName: entry.perfume.arabicName,
+            latinName: entry.perfume.latinName,
+            unitPriceMad: entry.perfume.priceMad,
+            quantity: entry.quantity,
+          })),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.order?.orderNumber) {
+          receipt.orderNumber = data.order.orderNumber;
+          receipt.createdAtIso = data.order.createdAtIso;
+        }
+      }
+    } catch {
+      // Proceed cleanly with WhatsApp order flow even if offline
+    } finally {
+      setIsSubmitting(false);
+    }
+
+    const whatsappUrl = buildWhatsAppChatUrl(settings.whatsappNumber, receipt);
+    triggerWhatsAppLink(whatsappUrl);
     onConfirmOrder(receipt);
     setCustomer(INITIAL_CUSTOMER);
   };
+
+  const confirmedWhatsappUrl = lastOrder
+    ? buildWhatsAppChatUrl(settings.whatsappNumber, lastOrder)
+    : '';
 
   return (
     <div
@@ -108,7 +182,7 @@ export function CartDrawer({
         <div className="flex-1 overflow-y-auto px-5 py-5">
           {lastOrder ? (
             <div data-testid="order-confirmation" className="space-y-5">
-              <div className="rounded-xl border border-[#B91C1C]/40 bg-[#1B0C0E] p-5">
+              <div className="rounded-xl border border-[#DC2626]/40 bg-[#1B0C0E] p-5">
                 <div className="flex items-center gap-2.5 text-[#FAF7F5]">
                   <CheckCircle2
                     className="h-6 w-6 shrink-0 text-[#DC2626]"
@@ -130,8 +204,8 @@ export function CartDrawer({
                   </div>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-[#A8A29E]">
-                  سنتواصل معك عبر الهاتف ({lastOrder.customer.phone}) لتأكيد التوصيل إلى{' '}
-                  {lastOrder.customer.city} — الدفع عند الاستلام.
+                  تم تجهيز ملخص طلبك لإرساله عبر واتساب للتوصيل إلى{' '}
+                  {lastOrder.customer.city} ({lastOrder.customer.address}) — الدفع عند الاستلام.
                 </p>
               </div>
 
@@ -157,7 +231,11 @@ export function CartDrawer({
                 </ul>
                 <div className="mt-3 border-t border-white/10 pt-3 text-sm">
                   <div className="flex justify-between text-[#A8A29E]">
-                    <span>التوصيل</span>
+                    <span>مجموع العطور</span>
+                    <span className="tabular-nums">{lastOrder.subtotalMad} درهم</span>
+                  </div>
+                  <div className="mt-1.5 flex justify-between text-[#A8A29E]">
+                    <span>رسوم التوصيل</span>
                     <span className="tabular-nums">
                       {lastOrder.shippingMad === 0
                         ? 'مجاني'
@@ -173,13 +251,24 @@ export function CartDrawer({
                 </div>
               </div>
 
+              <a
+                data-testid="whatsapp-order-link"
+                href={confirmedWhatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-[#DC2626] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#B91C1C]"
+              >
+                <span>إرسال الطلب عبر واتساب</span>
+                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </a>
+
               <button
                 type="button"
                 onClick={() => {
                   onClearReceipt();
                   onClose();
                 }}
-                className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-[#B91C1C] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#DC2626] cursor-pointer"
+                className="inline-flex min-h-[42px] w-full items-center justify-center rounded-lg border border-white/15 bg-[#09090B] px-4 py-2.5 text-sm font-semibold text-[#FAF7F5] transition-colors hover:border-white/30 cursor-pointer"
               >
                 متابعة التسوق
               </button>
@@ -193,40 +282,24 @@ export function CartDrawer({
                 سلة المشتريات فارغة
               </h3>
               <p className="mt-2 max-w-xs text-sm text-[#A8A29E]">
-                اختر عطرك المفضل بحجم 10 مل (50 درهم) أو اطلب المجموعة الثلاثية كاملة مع توصيل مجاني.
+                اختر عطرك المفضل وأضفه للسلة لإتمام الطلب عبر واتساب والدفع عند الاستلام.
               </p>
-              <button
-                type="button"
-                onClick={onAddTrio}
-                className="mt-6 inline-flex min-h-[42px] items-center justify-center rounded-lg bg-[#B91C1C] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#DC2626] cursor-pointer"
-              >
-                أضف العطور الثلاثة — 150 درهم
-              </button>
+              {products.length > 0 && (
+                <button
+                  type="button"
+                  onClick={onAddTrio}
+                  className="mt-6 inline-flex min-h-[42px] items-center justify-center rounded-lg bg-[#DC2626] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C] cursor-pointer"
+                >
+                  أضف الباقة المختارة للسلة
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Free shipping indicator */}
-              <div className="rounded-lg border border-white/10 bg-[#09090B] px-4 py-3 text-xs text-[#A8A29E]">
-                {totals.remainingForFreeShipping === 0 ? (
-                  <span className="font-semibold text-[#FAF7F5]">
-                    حصلت على توصيل مجاني لطلبك (3 عطور أو أكثر)
-                  </span>
-                ) : (
-                  <span>
-                    أضف{' '}
-                    <strong className="text-[#FAF7F5] tabular-nums">
-                      {totals.remainingForFreeShipping}
-                    </strong>{' '}
-                    {totals.remainingForFreeShipping === 1 ? 'عطر إضافي' : 'عطور إضافية'}{' '}
-                    للحصول على توصيل مجاني.
-                  </span>
-                )}
-              </div>
-
               {/* Cart items list */}
               <ul className="divide-y divide-white/10">
                 {cart.map((item) => {
-                  const perfume = getPerfumeById(item.perfumeId);
+                  const perfume = getPerfumeById(item.perfumeId, products);
                   if (!perfume) return null;
                   return (
                     <li
@@ -234,17 +307,23 @@ export function CartDrawer({
                       data-testid={`cart-item-${perfume.id}`}
                       className="flex items-center gap-3.5 py-4 first:pt-0"
                     >
-                      <img
-                        src={perfume.image}
-                        alt={perfume.arabicName}
-                        className="h-16 w-16 shrink-0 rounded-lg border border-white/10 bg-[#09090B] object-contain"
-                      />
+                      {perfume.image ? (
+                        <img
+                          src={perfume.image}
+                          alt={perfume.arabicName}
+                          className="h-16 w-16 shrink-0 rounded-lg border border-white/10 bg-[#09090B] object-contain"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-[#09090B] text-xs font-bold text-[#DC2626]">
+                          {getProductSizeText(perfume)}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold text-[#FAF7F5]">
                           {perfume.arabicName}
                         </p>
                         <p className="text-xs text-[#A8A29E] tabular-nums">
-                          10 مل · {perfume.priceMad} درهم
+                          {getProductSizeText(perfume)} · {perfume.priceMad} درهم
                         </p>
 
                         <div className="mt-2 flex items-center gap-2">
@@ -301,8 +380,8 @@ export function CartDrawer({
                   </span>
                 </div>
                 <div className="flex justify-between text-[#A8A29E]">
-                  <span>التوصيل</span>
-                  <span className="tabular-nums">
+                  <span>رسوم التوصيل</span>
+                  <span data-testid="cart-delivery-fee" className="tabular-nums">
                     {totals.shippingMad === 0
                       ? 'مجاني'
                       : `${totals.shippingMad} درهم`}
@@ -421,9 +500,12 @@ export function CartDrawer({
 
                 <button
                   type="submit"
-                  className="mt-2 inline-flex min-h-[46px] w-full items-center justify-center rounded-lg bg-[#B91C1C] px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-[#DC2626] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626] cursor-pointer"
+                  disabled={isSubmitting}
+                  className="mt-2 inline-flex min-h-[46px] w-full items-center justify-center rounded-lg bg-[#DC2626] px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626] cursor-pointer"
                 >
-                  تأكيد الطلب — {totals.totalMad} درهم
+                  {isSubmitting
+                    ? 'جاري تجهيز الطلب...'
+                    : `تأكيد الطلب — ${totals.totalMad} درهم`}
                 </button>
               </form>
             </div>
